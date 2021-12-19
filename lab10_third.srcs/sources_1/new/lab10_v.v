@@ -41,6 +41,8 @@ parameter   C_CMD_ERR       = 4'b0111;
 parameter   C_TXFIFO_WR     = 4'b0101;
 parameter   C_TXFIFO_WAIT   = 4'b0110;
 parameter   C_CMD_ADD       = 4'b1000;
+parameter   C_CMD_AND       = 4'b1001;
+parameter   C_CMD_OR        = 4'b1010;
 
 reg         [7:0]   ALU_operand_1;
 reg         [7:0]   ALU_operand_2;
@@ -62,6 +64,8 @@ reg         [3:0]   next_state;
 wire                is_wb_cmd;
 wire                is_rb_cmd;
 wire                is_add_cmd;
+wire                is_and_cmd;
+wire                is_or_cmd;
 
 reg         [3:0]   tx_byte_cnt;
 reg         [3:0]   rx_byte_cnt;
@@ -166,11 +170,20 @@ begin
                     next_state  = C_CMD_RB;
                 else if(is_add_cmd)
                     next_state  = C_CMD_ADD;
+                else if(is_and_cmd)
+                    next_state  = C_CMD_AND;
+                else if(is_or_cmd)
+                    next_state  = C_CMD_OR;
                 else
                     next_state  = C_CMD_ERR;
             end
             else
                 next_state  = C_CMD_DC;
+        C_CMD_OR:
+            if(ALU_rd==1'b1)
+                next_state  = C_CMD_WB;
+            else 
+                next_state  = C_CMD_OR;
         C_CMD_WB:
             next_state  = C_IDLE;
         C_CMD_RB://需要两个时钟周期完成
@@ -183,6 +196,11 @@ begin
                 next_state  = C_CMD_WB;
             else
                 next_state  = C_CMD_ADD;
+        C_CMD_AND:
+            if(ALU_rd==1'b1)
+                next_state  = C_CMD_WB;
+            else
+                next_state  = C_CMD_AND;
         C_CMD_ERR:
             next_state  = C_TXFIFO_WR;
         C_TXFIFO_WR:
@@ -384,9 +402,33 @@ assign  is_add_cmd = (curr_state==C_CMD_DC)
                     &&(((rx_byte_buff_10>="0")&&(rx_byte_buff_10<="9"))||((rx_byte_buff_10>="a")&&(rx_byte_buff_10<="f")))
                     &&(((rx_byte_buff_11>="0")&&(rx_byte_buff_11<="9"))||((rx_byte_buff_11>="a")&&(rx_byte_buff_11<="f")));
 
+assign is_and_cmd =  (curr_state==C_CMD_DC)
+                    &&(rx_byte_buff_0=="a")&&(rx_byte_buff_1=="n")&&(rx_byte_buff_2=="d")
+                    &&(rx_byte_buff_3==" ")
+                    &&(((rx_byte_buff_4>="0")&&(rx_byte_buff_4<="9"))||((rx_byte_buff_4>="a")&&(rx_byte_buff_4<="f")))
+                    &&(((rx_byte_buff_5>="0")&&(rx_byte_buff_5<="9"))||((rx_byte_buff_5>="a")&&(rx_byte_buff_5<="f")))
+                    &&(rx_byte_buff_6==" ")
+                    &&(((rx_byte_buff_7>="0")&&(rx_byte_buff_7<="9"))||((rx_byte_buff_7>="a")&&(rx_byte_buff_7<="f")))
+                    &&(((rx_byte_buff_8>="0")&&(rx_byte_buff_8<="9"))||((rx_byte_buff_8>="a")&&(rx_byte_buff_8<="f")))
+                    &&(rx_byte_buff_9==" ")
+                    &&(((rx_byte_buff_10>="0")&&(rx_byte_buff_10<="9"))||((rx_byte_buff_10>="a")&&(rx_byte_buff_10<="f")))
+                    &&(((rx_byte_buff_11>="0")&&(rx_byte_buff_11<="9"))||((rx_byte_buff_11>="a")&&(rx_byte_buff_11<="f")));
+
+assign is_or_cmd =  (curr_state==C_CMD_DC)
+                    &&(rx_byte_buff_0=="o")&&(rx_byte_buff_1=="r")
+                    &&(rx_byte_buff_2==" ")
+                    &&(((rx_byte_buff_3>="0")&&(rx_byte_buff_3<="9"))||((rx_byte_buff_3>="a")&&(rx_byte_buff_3<="f")))
+                    &&(((rx_byte_buff_4>="0")&&(rx_byte_buff_4<="9"))||((rx_byte_buff_4>="a")&&(rx_byte_buff_4<="f")))
+                    &&(rx_byte_buff_5==" ")
+                    &&(((rx_byte_buff_6>="0")&&(rx_byte_buff_6<="9"))||((rx_byte_buff_6>="a")&&(rx_byte_buff_6<="f")))
+                    &&(((rx_byte_buff_7>="0")&&(rx_byte_buff_7<="9"))||((rx_byte_buff_7>="a")&&(rx_byte_buff_7<="f")))
+                    &&(rx_byte_buff_8==" ")
+                    &&(((rx_byte_buff_9>="0")&&(rx_byte_buff_9<="9"))||((rx_byte_buff_9>="a")&&(rx_byte_buff_9<="f")))
+                    &&(((rx_byte_buff_10>="0")&&(rx_byte_buff_10<="9"))||((rx_byte_buff_10>="a")&&(rx_byte_buff_10<="f")));
+
 //至此，完成C_CMD_DC状态中的全部操作
 
-//执行C_CMD_ADD指令
+//执行C_CMD_ADD指令,C_CMD_AND,C_CMD_OR
 //先根据rx_fifo_buff更新ALU_addr
 //再根据ALU_addr更新ALU_operand
 //对ALU_operand进行add运算，存储在ALU_result中
@@ -400,7 +442,7 @@ always@(posedge clk or posedge rst) begin
         ALU_addr_1  <= 8'h0;
         ALU_addr_2  <= 8'h0;
     end
-    else if(curr_state == C_CMD_ADD) begin
+    else if(curr_state == C_CMD_ADD||curr_state == C_CMD_AND) begin
         ALU_rd   <= 1'b1;
         if((rx_byte_buff_4>="0")&&(rx_byte_buff_4<="9"))
             ALU_addr_0[7:4] <= rx_byte_buff_4[3:0];
@@ -427,6 +469,33 @@ always@(posedge clk or posedge rst) begin
         else
             ALU_addr_2[3:0] <= rx_byte_buff_11[2:0] + 4'h9;
     end
+    else if(curr_state == C_CMD_OR) begin
+        ALU_rd   <= 1'b1;
+        if((rx_byte_buff_3>="0")&&(rx_byte_buff_3<="9"))
+            ALU_addr_0[7:4] <= rx_byte_buff_3[3:0];
+        else
+            ALU_addr_0[7:4] <= rx_byte_buff_3[2:0] + 4'h9;
+        if((rx_byte_buff_4>="0")&&(rx_byte_buff_4<="9"))
+            ALU_addr_0[3:0] <= rx_byte_buff_4[3:0];
+        else
+            ALU_addr_0[3:0] <= rx_byte_buff_4[2:0] + 4'h9;
+        if((rx_byte_buff_6>="0")&&(rx_byte_buff_6<="9"))
+            ALU_addr_1[7:4] <= rx_byte_buff_6[3:0];
+        else
+            ALU_addr_1[7:4] <= rx_byte_buff_6[2:0] + 4'h9;
+        if((rx_byte_buff_7>="0")&&(rx_byte_buff_7<="9"))
+            ALU_addr_1[3:0] <= rx_byte_buff_7[3:0];
+        else
+            ALU_addr_1[3:0] <= rx_byte_buff_7[2:0] + 4'h9;
+        if((rx_byte_buff_9>="0")&&(rx_byte_buff_9<="9"))
+            ALU_addr_2[7:4] <= rx_byte_buff_9[3:0];
+        else
+            ALU_addr_2[7:4] <= rx_byte_buff_9[2:0] + 4'h9;
+        if((rx_byte_buff_10>="0")&&(rx_byte_buff_10<="9"))
+            ALU_addr_2[3:0] <= rx_byte_buff_10[3:0];
+        else
+            ALU_addr_2[3:0] <= rx_byte_buff_10[2:0] + 4'h9;
+    end
     else begin
         ALU_rd   <= 1'b0;
         ALU_addr_0  <= 8'h0;//结果存储的地址
@@ -437,13 +506,17 @@ end
 
 //ALU_wd,
 always @(posedge clk or posedge rst) begin
-    if(rst) begin
+    if(rst) 
         ALU_wd <= 1'b0;
-        ALU_operand_1 <= 8'h0;
-        ALU_operand_2 <= 8'h0;
-    end
-    else if((curr_state==C_CMD_ADD)&&ALU_rd) begin
+    else if(((curr_state==C_CMD_ADD)||(curr_state==C_CMD_AND)||(curr_state==C_CMD_OR))&&ALU_rd) 
         ALU_wd <= 1'b1;//通过这个标志位，使得写比读晚一个周期
+    else
+        ALU_wd <= 1'b0;
+end
+
+//ALU_operand
+always @(*) begin
+    if(ALU_rd) begin
         case(ALU_addr_1)
             8'h0:   ALU_operand_1 = sw;
             8'h10:  ALU_operand_1 = hexplay_buff[7:0];
@@ -492,18 +565,20 @@ always @(posedge clk or posedge rst) begin
             8'h2f:  ALU_operand_2 = store_buff[127:120];
             default:ALU_operand_2 = 8'h0;
         endcase
-    end
-    else begin
-        ALU_wd <= 1'b0;
-        ALU_operand_1 <= 8'h0;
-        ALU_operand_2 <= 8'h0;
+        if(curr_state==C_CMD_ADD)
+            ALU_result = ALU_operand_1 + ALU_operand_2;
+        else if(curr_state==C_CMD_AND)
+            ALU_result = ALU_operand_1 & ALU_operand_2;
+        else if(curr_state==C_CMD_OR)
+            ALU_result = ALU_operand_1 | ALU_operand_2;
     end
 end
 
+
 //ALU_result
-always @(*) begin
-    ALU_result = ALU_operand_1 + ALU_operand_2;
-end
+//always @(*) begin
+//    ALU_result = ALU_operand_1 + ALU_operand_2;
+//end
 
 
 //执行C_CMD_WB指令
