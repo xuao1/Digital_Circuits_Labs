@@ -1,0 +1,13 @@
+#-----------------------------------------------------------
+# Vivado v2020.2 (64-bit)
+# SW Build 3064766 on Wed Nov 18 09:12:45 MST 2020
+# IP Build 3064653 on Wed Nov 18 14:17:31 MST 2020
+# Start of session at: Fri Dec 17 17:21:54 2021
+# Process ID: 26872
+# Current directory: C:/Users/86198/Desktop/数字电路实验/Lab10/fpgaol_uart.srcs/sources_1/ip/fifo_32x8bit_0
+# Command line: vivado.exe -gui_launcher_event rodinguilauncherevent28620 C:\Users\86198\Desktop\数字电路实验\Lab10\fpgaol_uart.srcs\sources_1\ip\fifo_32x8bit_0\fifo_32x8bit_0.dcp
+# Log file: C:/Users/86198/Desktop/数字电路实验/Lab10/fpgaol_uart.srcs/sources_1/ip/fifo_32x8bit_0/vivado.log
+# Journal file: C:/Users/86198/Desktop/数字电路实验/Lab10/fpgaol_uart.srcs/sources_1/ip/fifo_32x8bit_0\vivado.jou
+#-----------------------------------------------------------
+start_gui
+open_checkpoint C:/Users/86198/Desktop/数字电路实验/Lab10/fpgaol_uart.srcs/sources_1/ip/fifo_32x8bit_0/fifo_32x8bit_0.dcp
