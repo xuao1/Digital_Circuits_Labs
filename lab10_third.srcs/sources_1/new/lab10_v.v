@@ -46,6 +46,7 @@ parameter   C_CMD_OR        = 4'b1010;
 parameter   C_CMD_NOT       = 4'b1011;
 parameter   C_CMD_XOR       = 4'b1100;
 parameter   C_CMD_MUL       = 4'b1101;
+parameter   C_CMD_BONUS     = 4'b1110;
 
 reg         [7:0]   ALU_operand_1;
 reg         [7:0]   ALU_operand_2;
@@ -72,8 +73,9 @@ wire                is_or_cmd;
 wire                is_not_cmd;
 wire                is_xor_cmd;
 wire                is_mul_cmd;
+wire                is_bonus_cmd;
 
-reg         [3:0]   tx_byte_cnt;
+reg         [7:0]   tx_byte_cnt;
 reg         [3:0]   rx_byte_cnt;
 
 reg         [7:0]   rx_byte_buff_0;
@@ -97,6 +99,14 @@ reg         [7:0]   tx_byte_buff_4;
 reg         [7:0]   tx_byte_buff_5;
 reg         [7:0]   tx_byte_buff_6;
 reg         [7:0]   tx_byte_buff_7;
+reg         [7:0]   tx_byte_buff_8;
+reg         [7:0]   tx_byte_buff_9;
+reg         [7:0]   tx_byte_buff_10;
+reg         [7:0]   tx_byte_buff_11;
+reg         [7:0]   tx_byte_buff_12;
+reg         [7:0]   tx_byte_buff_13;
+reg         [7:0]   tx_byte_buff_14;
+reg         [7:0]   tx_byte_buff_15;
 
 reg         [31:0]  hexplay_buff;//存储数据的作用
 reg         [127:0] store_buff;
@@ -186,6 +196,8 @@ begin
                     next_state  = C_CMD_XOR;
                 else if(is_mul_cmd)
                     next_state  = C_CMD_MUL;
+                else if(is_bonus_cmd)
+                    next_state  = C_CMD_BONUS;
                 else
                     next_state  = C_CMD_ERR;
             end
@@ -228,6 +240,8 @@ begin
                 next_state  = C_CMD_WB;
             else
                 next_state  = C_CMD_AND;
+        C_CMD_BONUS:
+            next_state  = C_TXFIFO_WR;
         C_CMD_ERR:
             next_state  = C_TXFIFO_WR;
         C_TXFIFO_WR:
@@ -257,17 +271,19 @@ end
 always@(posedge clk or posedge rst)
 begin
     if(rst)
-        tx_byte_cnt <= 4'h0;
+        tx_byte_cnt <= 8'h0;
     else if(curr_state==C_IDLE)
-        tx_byte_cnt <= 4'h0;
+        tx_byte_cnt <= 8'h0;
     else if(curr_state==C_CMD_RB)
-        tx_byte_cnt <= 4'h2;
+        tx_byte_cnt <= 8'h2;
     else if(curr_state==C_CMD_ERR)
-        tx_byte_cnt <= 4'h6;
+        tx_byte_cnt <= 8'h6;
+    else if(curr_state==C_CMD_BONUS)
+        tx_byte_cnt <= 8'hf;
     else if(curr_state==C_TXFIFO_WR)
     begin
-        if(tx_byte_cnt!=4'h0)
-            tx_byte_cnt <= tx_byte_cnt - 4'h1;
+        if(tx_byte_cnt!=8'h0)
+            tx_byte_cnt <= tx_byte_cnt - 8'h1;
     end
 end
 
@@ -275,8 +291,7 @@ end
 //在C_TXFIFO_WR和C_TCFIFO_WAIT状态下，进行转化输出
 always@(posedge clk or posedge rst)
 begin
-    if(rst)
-    begin
+    if(rst) begin
         tx_byte_buff_0  <= 8'h0;
         tx_byte_buff_1  <= 8'h0;
         tx_byte_buff_2  <= 8'h0;
@@ -286,8 +301,7 @@ begin
         tx_byte_buff_6  <= 8'h0;
         tx_byte_buff_7  <= 8'h0;
     end
-    else if(curr_state==C_IDLE)
-    begin
+    else if(curr_state==C_IDLE) begin
         tx_byte_buff_0  <= 8'h0;
         tx_byte_buff_1  <= 8'h0;
         tx_byte_buff_2  <= 8'h0;
@@ -297,8 +311,7 @@ begin
         tx_byte_buff_6  <= 8'h0;
         tx_byte_buff_7  <= 8'h0;
     end
-    else if(curr_state==C_CMD_RB)
-    begin
+    else if(curr_state==C_CMD_RB) begin
         tx_byte_buff_0  <= "\n";
         if(rd_data[7:4]<=4'h9)//0~9
             tx_byte_buff_2  <= {4'h3,rd_data[7:4]};
@@ -309,14 +322,31 @@ begin
         else
             tx_byte_buff_1  <= rd_data[3:0] - 4'ha + "a";
     end
-    else if(curr_state==C_CMD_ERR)
-    begin
+    else if(curr_state==C_CMD_ERR) begin
         tx_byte_buff_6  <= "E";
         tx_byte_buff_5  <= "R";
         tx_byte_buff_4  <= "R";
         tx_byte_buff_3  <= "O";
         tx_byte_buff_2  <= "R";
         tx_byte_buff_1  <= "!";
+        tx_byte_buff_0  <= "\n";
+    end
+    else if(curr_state==C_CMD_BONUS) begin
+        tx_byte_buff_15 <= "M";
+        tx_byte_buff_14 <= "E";
+        tx_byte_buff_13 <= "R";
+        tx_byte_buff_12 <= "R";
+        tx_byte_buff_11 <= "Y";
+        tx_byte_buff_10 <= " ";
+        tx_byte_buff_9  <= "C";
+        tx_byte_buff_8  <= "H";
+        tx_byte_buff_7  <= "R";
+        tx_byte_buff_6  <= "I";
+        tx_byte_buff_5  <= "S";
+        tx_byte_buff_4  <= "T";
+        tx_byte_buff_3  <= "M";
+        tx_byte_buff_2  <= "A";
+        tx_byte_buff_1  <= "S";
         tx_byte_buff_0  <= "\n";
     end
 end
@@ -486,6 +516,10 @@ assign  is_mul_cmd = (curr_state==C_CMD_DC)
                     &&(((rx_byte_buff_10>="0")&&(rx_byte_buff_10<="9"))||((rx_byte_buff_10>="a")&&(rx_byte_buff_10<="f")))
                     &&(((rx_byte_buff_11>="0")&&(rx_byte_buff_11<="9"))||((rx_byte_buff_11>="a")&&(rx_byte_buff_11<="f")));
 
+assign  is_bonus_cmd = (curr_state==C_CMD_DC)
+                    &&(rx_byte_buff_0=="b")&&(rx_byte_buff_1=="o")&&(rx_byte_buff_2=="n")
+                    &&(rx_byte_buff_3=="u")&&(rx_byte_buff_4=="s");
+
 //至此，完成C_CMD_DC状态中的全部操作
 
 //执行ALU:C_CMD_ADD,C_CMD_AND,C_CMD_OR,C_CMD_NOT,C_CMD_XOR,C_CMD_MUL
@@ -595,7 +629,6 @@ end
 
 
 //ALU_operand
-
 wire    [7:0]   ALU_ADD_result;//加法器
 add_8   add(.s(ALU_ADD_result),.cout(),.a(ALU_operand_1),.b(ALU_operand_2),.cin(1'b0));
 wire    [7:0]   ALU_MUL_result;//乘法器
@@ -658,7 +691,7 @@ always @(*) begin
         else if(curr_state==C_CMD_OR)
             ALU_result = ALU_operand_1 | ALU_operand_2;
         else if(curr_state==C_CMD_NOT)
-            ALU_result = ~ALU_operand_1;
+            ALU_result = ALU_operand_1;
         else if(curr_state==C_CMD_XOR)
             ALU_result = ALU_operand_1 ^ ALU_operand_2;
         else if(curr_state==C_CMD_MUL)
@@ -680,16 +713,14 @@ end
 //wr_addr,wr_data,wr_en
 always@(posedge clk or posedge rst)
 begin
-    if(rst)
-    begin
+    if(rst) begin
         wr_en   <= 1'b0;
         wr_addr[7:4] <= 4'h0;
         wr_addr[3:0] <= 4'h0;
         wr_data[7:4] <= 4'h0;
         wr_data[3:0] <= 4'h0;
     end
-    else if(curr_state == C_CMD_WB)
-    begin
+    else if(curr_state == C_CMD_WB) begin
         wr_en   <= 1'b1;
         if(ALU_wd==1'b1) begin//上一个状态是进行运算
             wr_addr <= ALU_addr_0;
@@ -714,8 +745,7 @@ begin
                 wr_data[3:0] <= rx_byte_buff_7[2:0] + 4'h9;
         end   
     end
-    else
-    begin
+    else begin
         wr_en   <= 1'b0;
         wr_addr[7:4] <= 4'h0;
         wr_addr[3:0] <= 4'h0;
@@ -855,13 +885,22 @@ begin
     begin
         tx_fifo_wr_en   <= 1'b1;
         case(tx_byte_cnt)
-            4'h6:   tx_fifo_din <= tx_byte_buff_6;
-            4'h5:   tx_fifo_din <= tx_byte_buff_5;
-            4'h4:   tx_fifo_din <= tx_byte_buff_4;
-            4'h3:   tx_fifo_din <= tx_byte_buff_3;
-            4'h2:   tx_fifo_din <= tx_byte_buff_2;
-            4'h1:   tx_fifo_din <= tx_byte_buff_1;
-            4'h0:   tx_fifo_din <= tx_byte_buff_0;
+            8'hf:   tx_fifo_din <= tx_byte_buff_15;
+            8'he:   tx_fifo_din <= tx_byte_buff_14;
+            8'hd:   tx_fifo_din <= tx_byte_buff_13;
+            8'hc:   tx_fifo_din <= tx_byte_buff_12;
+            8'hb:   tx_fifo_din <= tx_byte_buff_11;
+            8'ha:   tx_fifo_din <= tx_byte_buff_10;
+            8'h9:   tx_fifo_din <= tx_byte_buff_9;
+            8'h8:   tx_fifo_din <= tx_byte_buff_8;
+            8'h7:   tx_fifo_din <= tx_byte_buff_7;
+            8'h6:   tx_fifo_din <= tx_byte_buff_6;
+            8'h5:   tx_fifo_din <= tx_byte_buff_5;
+            8'h4:   tx_fifo_din <= tx_byte_buff_4;
+            8'h3:   tx_fifo_din <= tx_byte_buff_3;
+            8'h2:   tx_fifo_din <= tx_byte_buff_2;
+            8'h1:   tx_fifo_din <= tx_byte_buff_1;
+            8'h0:   tx_fifo_din <= tx_byte_buff_0;
             default:tx_fifo_din <= 8'h0;
         endcase
     end
