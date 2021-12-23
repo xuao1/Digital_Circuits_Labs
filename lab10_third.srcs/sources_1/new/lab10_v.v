@@ -528,16 +528,17 @@ assign  is_bonus_cmd = (curr_state==C_CMD_DC)
 //对ALU_operand进行add运算，存储在ALU_result中
 //根据ALU_addr，将ALU_result存回地址中
 
+reg     ALU_rd_2;
 //ALU_addr,ALU_rd
 always@(posedge clk or posedge rst) begin
     if(rst) begin
-        ALU_rd   <= 1'b0;
+        ALU_rd_2   <= 1'b0;
         ALU_addr_0  <= 8'h0;//结果存储的地址
         ALU_addr_1  <= 8'h0;
         ALU_addr_2  <= 8'h0;
     end
     else if(curr_state == C_CMD_ADD||curr_state == C_CMD_AND||curr_state == C_CMD_XOR||curr_state == C_CMD_MUL) begin
-        ALU_rd   <= 1'b1;
+        ALU_rd_2   <= 1'b1;
         if((rx_byte_buff_4>="0")&&(rx_byte_buff_4<="9"))
             ALU_addr_0[7:4] <= rx_byte_buff_4[3:0];
         else
@@ -564,7 +565,7 @@ always@(posedge clk or posedge rst) begin
             ALU_addr_2[3:0] <= rx_byte_buff_11[2:0] + 4'h9;
     end
     else if(curr_state == C_CMD_OR) begin
-        ALU_rd   <= 1'b1;
+        ALU_rd_2   <= 1'b1;
         if((rx_byte_buff_3>="0")&&(rx_byte_buff_3<="9"))
             ALU_addr_0[7:4] <= rx_byte_buff_3[3:0];
         else
@@ -591,7 +592,7 @@ always@(posedge clk or posedge rst) begin
             ALU_addr_2[3:0] <= rx_byte_buff_10[2:0] + 4'h9;
     end
     else if(curr_state == C_CMD_NOT) begin
-        ALU_rd   <= 1'b1;
+        ALU_rd_2   <= 1'b1;
         if((rx_byte_buff_4>="0")&&(rx_byte_buff_4<="9"))
             ALU_addr_0[7:4] <= rx_byte_buff_4[3:0];
         else
@@ -610,18 +611,26 @@ always@(posedge clk or posedge rst) begin
             ALU_addr_1[3:0] <= rx_byte_buff_8[2:0] + 4'h9;
     end
     else begin
-        ALU_rd   <= 1'b0;
+        ALU_rd_2   <= 1'b0;
         ALU_addr_0  <= 8'h0;//结果存储的地址
         ALU_addr_1  <= 8'h0;
         ALU_addr_2  <= 8'h0;
     end
 end  
 
+
+always @(posedge clk or posedge rst) begin
+    if(rst) ALU_rd  <= 1'b0;
+    else if(ALU_rd_2==1'b1) ALU_rd  <= 1'b1;
+    else    ALU_rd  <= 1'b0;
+end
+
 //ALU_wd
 always @(posedge clk or posedge rst) begin
     if(rst) 
         ALU_wd <= 1'b0;
-    else if(((curr_state==C_CMD_ADD)||(curr_state==C_CMD_AND)||(curr_state==C_CMD_OR||(curr_state==C_CMD_NOT)||(curr_state==C_CMD_XOR)||(curr_state==C_CMD_MUL)))&&ALU_rd) 
+    else if(((curr_state==C_CMD_ADD)||(curr_state==C_CMD_AND)||(curr_state==C_CMD_OR||(curr_state==C_CMD_NOT)
+    ||(curr_state==C_CMD_XOR)||(curr_state==C_CMD_MUL)))&&ALU_rd) 
         ALU_wd <= 1'b1;//通过这个标志位，使得写比读晚一个周期
     else
         ALU_wd <= 1'b0;
@@ -629,13 +638,8 @@ end
 
 
 //ALU_operand
-wire    [7:0]   ALU_ADD_result;//加法器
-add_8   add(.s(ALU_ADD_result),.cout(),.a(ALU_operand_1),.b(ALU_operand_2),.cin(1'b0));
-wire    [7:0]   ALU_MUL_result;//乘法器
-mul     mul(.a(ALU_operand_1),.b(ALU_operand_2),.out(ALU_MUL_result));
-
 always @(*) begin
-    if(ALU_rd) begin
+    if(ALU_rd_2) begin
         case(ALU_addr_1)
             8'h0:   ALU_operand_1 = sw;
             8'h10:  ALU_operand_1 = hexplay_buff[7:0];
@@ -684,14 +688,24 @@ always @(*) begin
             8'h2f:  ALU_operand_2 = store_buff[127:120];
             default:ALU_operand_2 = 8'h0;
         endcase
+    end
+end
+
+wire    [7:0]   ALU_ADD_result;//加法器
+add_8   add(.s(ALU_ADD_result),.cout(),.a(ALU_operand_1),.b(ALU_operand_2),.cin(1'b0));
+wire    [7:0]   ALU_MUL_result;//乘法器
+mul     mul(.a(ALU_operand_1),.b(ALU_operand_2),.out(ALU_MUL_result));
+
+always @(*) begin
+    if(ALU_rd) begin
         if(curr_state==C_CMD_ADD)
             ALU_result = ALU_ADD_result;
         else if(curr_state==C_CMD_AND)
             ALU_result = ALU_operand_1 & ALU_operand_2;
         else if(curr_state==C_CMD_OR)
             ALU_result = ALU_operand_1 | ALU_operand_2;
-        else if(curr_state==C_CMD_NOT)
-            ALU_result = ALU_operand_1;
+        else if(curr_state==C_CMD_NOT) 
+            ALU_result = ~ ALU_operand_1;
         else if(curr_state==C_CMD_XOR)
             ALU_result = ALU_operand_1 ^ ALU_operand_2;
         else if(curr_state==C_CMD_MUL)
